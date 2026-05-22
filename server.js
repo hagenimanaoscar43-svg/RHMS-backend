@@ -5953,34 +5953,15 @@ app.get('/api/hotel/attendance/export', authenticateToken, authorizeRole('hotel_
         res.status(500).json({ error: 'Failed to export attendance' });
     }
 });
+app.get("/", (req, res) => {
+  res.json({
+    message: "RHMS Backend is running successfully 🚀"
+  });
+});
 // ============================================
 // ==================== START SERVER ====================
 // ============================================
 app.listen(PORT, () => {
     console.log(`\n🚀 RHMS Server running on port ${PORT}`);
     console.log(`📋 API Base URL: http://localhost:${PORT}`);
-    console.log(`\n✅ Client Auth Endpoints:`);
-    console.log(`   POST   /api/client/register`);
-    console.log(`   POST   /api/client/verify`);
-    console.log(`   POST   /api/client/login (OTP required)`);
-    console.log(`   POST   /api/client/verify-otp`);
-    console.log(`   POST   /api/client/resend-login-otp`);
-    console.log(`   POST   /api/client/forgot-password`);
-    console.log(`   POST   /api/client/reset-password`);
-    console.log(`\n✅ Hotel Auth Endpoints:`);
-    console.log(`   POST   /api/hotel/register`);
-    console.log(`   POST   /api/hotel/verify`);
-    console.log(`   POST   /api/hotel/login (OTP required)`);
-    console.log(`   POST   /api/hotel/verify-otp`);
-    console.log(`   POST   /api/hotel/forgot-password`);
-    console.log(`   POST   /api/hotel/reset-password`);
-    console.log(`\n✅ Employee Auth Endpoints:`);
-    console.log(`   POST   /api/employee/login (OTP required)`);
-    console.log(`   POST   /api/employee/verify-otp`);
-    console.log(`   POST   /api/employee/verify`);
-    console.log(`   POST   /api/employee/forgot-password`);
-    console.log(`   POST   /api/employee/reset-password`);
-    console.log(`\n✅ RDB Auth Endpoint (NO OTP):`);
-    console.log(`   POST   /api/rdb/login`);
-    console.log(`\n========================================\n`);
 });
