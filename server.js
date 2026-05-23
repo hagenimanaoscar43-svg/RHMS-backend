@@ -2717,7 +2717,7 @@ app.put('/api/chat/messages/read/:senderId', authenticateToken, async (req, res)
 // In Chat.jsx, wrap the fetch in a try-catch
 const loadConversations = async () => {
     try {
-        const response = await fetch("http://localhost:5001/api/chat/conversations", {
+        const response = await fetch("http://https://rhms-backend.onrender.com/api/chat/conversations", {
             headers: { "Authorization": `Bearer ${token}` }
         });
         if (response.ok) {
