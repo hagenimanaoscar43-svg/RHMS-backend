@@ -4,7 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { Pool } = require('pg');
+const { Pool } = require('pg');  // ✅ ONLY ONE DECLARATION
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const multer = require('multer');
@@ -14,17 +14,17 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// Update CORS to allow your frontend (add before routes)
+// ============================================
+// MIDDLEWARE
+// ============================================
+// Updated CORS for production
 app.use(cors({
-  origin: ['http://localhost:5173', 'https://your-frontend.vercel.app'],
+  origin: ['http://localhost:5173', 'https://your-frontend.vercel.app', 'https://rhms-frontend.vercel.app'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-// ============================================
-// MIDDLEWARE
-// ============================================
-app.use(cors());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
@@ -44,10 +44,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // ============================================
-// DATABASE CONNECTION
-// ============================================
-// ============================================
-// HEALTH CHECK ENDPOINT - ADD THIS
+// HEALTH CHECK ENDPOINTS
 // ============================================
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -57,7 +54,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Also add root endpoint
 app.get('/', (req, res) => {
   res.json({ 
     message: 'RHMS Backend API is running',
@@ -70,30 +66,27 @@ app.get('/', (req, res) => {
     }
   });
 });
-import pkg from 'pg';
-const { Pool } = pkg;
 
+// ============================================
+// DATABASE CONNECTION - FIXED
+// ============================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  },
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000
 });
 
 // TEST CONNECTION PROPERLY
-(async () => {
-  try {
-    const res = await pool.query('SELECT NOW()');
-    console.log('✅ Connected to PostgreSQL database:', res.rows[0]);
-  } catch (err) {
-    console.error('❌ Database connection error:', err.message);
-  }
-})();
-
-export default pool;
+pool.connect((err, client, release) => {
+    if (err) {
+        console.error('❌ Database connection error:', err.message);
+    } else {
+        console.log('✅ Connected to PostgreSQL database');
+        release();
+    }
+});
 
 // ============================================
 // JWT & EMAIL CONFIG
