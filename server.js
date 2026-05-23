@@ -94,9 +94,6 @@ pool.connect((err, client, release) => {
 // ============================================
 const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
 const JWT_EXPIRES_IN = '7d';
-
-const nodemailer = require("nodemailer");
-
 // FIXED SMTP CONFIG (RENDER FRIENDLY)
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
