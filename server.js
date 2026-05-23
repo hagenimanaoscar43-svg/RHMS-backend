@@ -70,20 +70,30 @@ app.get('/', (req, res) => {
     }
   });
 });
+import pkg from 'pg';
+const { Pool } = pkg;
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
+  },
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000
+});
+
+// TEST CONNECTION PROPERLY
+(async () => {
+  try {
+    const res = await pool.query('SELECT NOW()');
+    console.log('✅ Connected to PostgreSQL database:', res.rows[0]);
+  } catch (err) {
+    console.error('❌ Database connection error:', err.message);
   }
-});
-pool.connect((err, client, release) => {
-    if (err) {
-        console.error('❌ Database connection error:', err.stack);
-    } else {
-        console.log('✅ Connected to PostgreSQL database');
-        release();
-    }
-});
+})();
+
+export default pool;
 
 // ============================================
 // JWT & EMAIL CONFIG
