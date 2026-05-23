@@ -90,20 +90,35 @@ pool.connect((err, client, release) => {
     }
 });
 
-// ============================================
 // JWT & EMAIL CONFIG
 // ============================================
 const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
 const JWT_EXPIRES_IN = '7d';
 
-let transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
+const nodemailer = require("nodemailer");
+
+// FIXED SMTP CONFIG (RENDER FRIENDLY)
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false, // important for TLS
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
 });
 
+// OPTIONAL: test SMTP connection
+transporter.verify((error, success) => {
+  if (error) {
+    console.log("❌ SMTP connection failed:", error.message);
+  } else {
+    console.log("✅ SMTP is ready to send emails");
+  }
+});
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
