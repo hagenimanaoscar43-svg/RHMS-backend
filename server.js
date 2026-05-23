@@ -14,6 +14,13 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// Update CORS to allow your frontend (add before routes)
+app.use(cors({
+  origin: ['http://localhost:5173', 'https://your-frontend.vercel.app'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 // ============================================
 // MIDDLEWARE
 // ============================================
@@ -39,6 +46,30 @@ const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } 
 // ============================================
 // DATABASE CONNECTION
 // ============================================
+// ============================================
+// HEALTH CHECK ENDPOINT - ADD THIS
+// ============================================
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'Server is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Also add root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'RHMS Backend API is running',
+    endpoints: {
+      health: '/api/health',
+      client: '/api/client/register',
+      hotel: '/api/hotel/register',
+      employee: '/api/employee/login',
+      rdb: '/api/rdb/login'
+    }
+  });
+});
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
