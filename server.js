@@ -19,11 +19,13 @@ const PORT = process.env.PORT || 5001;
 // ============================================
 // Updated CORS for production
 app.use(cors({
-  origin: ['http://localhost:5173', 'https://your-frontend.vercel.app', 'https://rhms-frontend.vercel.app'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: [
+    "https://rhms-frontend-blush.vercel.app"
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
+app.options("*", cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
