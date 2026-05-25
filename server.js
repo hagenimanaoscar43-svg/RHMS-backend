@@ -88,7 +88,6 @@ pool.connect((err, client, release) => {
     }
 });
 // email resent configuration
-// DELETE the old nodemailer code, keep only:
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
