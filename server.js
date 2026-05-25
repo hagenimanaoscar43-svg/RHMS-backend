@@ -90,43 +90,152 @@ pool.connect((err, client, release) => {
     }
 });
 
-// JWT & EMAIL CONFIG
-const nodemailer = require("nodemailer");
+// ============================================
+// EMAIL CONFIGURATION - FIXED FOR RENDER
+// ============================================
+const nodemailer = require('nodemailer');
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // MUST be App Password
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-});
-async function sendOTP(email, otp) {
+// Create transporter with better timeout handling
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false, // true for 465, false for 587
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS, // MUST be App Password
+    },
+    connectionTimeout: 15000, // 15 seconds
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
+    tls: {
+      rejectUnauthorized: false,
+      ciphers: 'SSLv3'
+    },
+    debug: process.env.NODE_ENV === 'development',
+    logger: process.env.NODE_ENV === 'development'
+  });
+};
 
-    try {
+let transporter = null;
 
-        const info = await transporter.sendMail({
-            from: `"RHMS" <${process.env.EMAIL_USER}>`,
-            to: email,
-            subject: 'OTP Verification',
-            text: `Your OTP is ${otp}`
-        });
+// Initialize transporter with retry logic
+const getTransporter = () => {
+  if (!transporter) {
+    transporter = createTransporter();
+  }
+  return transporter;
+};
 
-        console.log("📧 Email sent:", info.messageId);
+// Improved sendEmail function with retry
+const sendEmail = async (to, subject, html) => {
+  // Validate email
+  if (!to || typeof to !== 'string') {
+    console.error('❌ Invalid email address:', to);
+    return { success: false, error: 'No email address provided' };
+  }
 
-        return true;
+  const emailRegex = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/;
+  if (!emailRegex.test(to)) {
+    console.error('❌ Invalid email format:', to);
+    return { success: false, error: 'Invalid email format' };
+  }
 
-    } catch(error) {
-
-        console.error("EMAIL ERROR:", error);
-
-        return false;
+  // Check configuration
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.error('❌ Email credentials missing in .env');
+    console.error('   EMAIL_USER:', process.env.EMAIL_USER ? 'Set' : 'Missing');
+    console.error('   EMAIL_PASS:', process.env.EMAIL_PASS ? 'Set' : 'Missing');
+    
+    // Development fallback - log OTP
+    if (process.env.NODE_ENV !== 'production') {
+      const otpMatch = html.match(/(\d{6})/);
+      console.log(`\n📧 [DEV MODE] Email to: ${to}`);
+      console.log(`   OTP Code: ${otpMatch ? otpMatch[1] : 'unknown'}`);
+      console.log(`   Subject: ${subject}\n`);
+      return { success: true, devMode: true };
     }
-}
+    return { success: false, error: 'Email not configured' };
+  }
+
+  // Try sending with retry
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log(`📧 Attempt ${attempt} to send email to: ${to}`);
+      
+      const mailOptions = {
+        from: `"RHMS System" <${process.env.EMAIL_USER}>`,
+        to: to,
+        subject: subject,
+        html: html,
+      };
+
+      const result = await getTransporter().sendMail(mailOptions);
+      console.log(`✅ Email sent successfully to ${to}, Message ID: ${result.messageId}`);
+      return { success: true, messageId: result.messageId };
+      
+    } catch (error) {
+      console.error(`❌ Attempt ${attempt} failed for ${to}:`, error.message);
+      
+      if (error.message.includes('Invalid login')) {
+        console.error('   → Invalid Gmail credentials. Use App Password, not regular password.');
+        return { success: false, error: 'Authentication failed' };
+      }
+      
+      if (error.message.includes('ECONNECTION') || error.message.includes('TIMEOUT')) {
+        console.error('   → Connection timeout. Retrying...');
+        if (attempt === 3) {
+          return { success: false, error: 'Connection timeout after 3 attempts' };
+        }
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        continue;
+      }
+      
+      if (attempt === 3) {
+        return { success: false, error: error.message };
+      }
+    }
+  }
+  
+  return { success: false, error: 'All attempts failed' };
+};
+// TEMPORARY: Test email endpoint
+app.post('/api/test-email', async (req, res) => {
+    const { email } = req.body;
+    
+    if (!email) {
+        return res.status(400).json({ error: 'Email address required' });
+    }
+    
+    console.log('📧 Testing email to:', email);
+    console.log('EMAIL_USER:', process.env.EMAIL_USER);
+    console.log('EMAIL_PASS set:', !!process.env.EMAIL_PASS);
+    
+    try {
+        const result = await sendEmail(
+            email,
+            'RHMS Email Test',
+            `
+            <div style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2 style="color: #2563eb;">✅ Email Working!</h2>
+                <p>If you're reading this, your email configuration is correct.</p>
+                <p>Time: ${new Date().toLocaleString()}</p>
+                <p>Environment: ${process.env.NODE_ENV}</p>
+            </div>
+            `
+        );
+        
+        if (result && result.success) {
+            res.json({ success: true, message: 'Email sent! Check your inbox/spam.' });
+        } else {
+            res.status(500).json({ error: 'Email failed', details: result });
+        }
+    } catch (error) {
+        console.error('Test error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
