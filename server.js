@@ -5,7 +5,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');  
-
+const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
@@ -246,23 +246,6 @@ const generateVerificationCode = () => {
 const generateResetToken = () => {
     return crypto.randomBytes(32).toString('hex');
 };
-
-const sendEmail = async (to, subject, html) => {
-    try {
-        const info = await transporter.sendMail({
-            from: '"RHMS" <noreply@rhms.gov.rw>',
-            to,
-            subject,
-            html
-        });
-        console.log('Email sent:', info.messageId);
-        return info;
-    } catch (error) {
-        console.error('Email error:', error);
-        return null;
-    }
-};
-
 // ============================================
 // AUTH MIDDLEWARE
 // ============================================
