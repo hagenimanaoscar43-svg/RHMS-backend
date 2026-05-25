@@ -1,19 +1,20 @@
-// server.js - Complete RHMS Backend Server (OTP REQUIRED FOR ALL USERS EXCEPT RDB)
-const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
-require('dotenv').config();
+// server.js - Complete RHMS Backend Server
+require('dotenv').config();  // ✅ MUST BE FIRST
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { Pool } = require('pg');  // ✅ ONLY ONE DECLARATION
+const { Pool } = require('pg');
 const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+
 const app = express();
 const PORT = process.env.PORT || 5001;
-const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
 
+// Now JWT_SECRET will read from .env
+const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
 // ============================================
 // MIDDLEWARE
 // ============================================
