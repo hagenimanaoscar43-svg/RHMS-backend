@@ -10,7 +10,6 @@ const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-
 const app = express();
 const PORT = process.env.PORT || 5001;
 const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
@@ -46,7 +45,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-// ============================================
 // HEALTH CHECK ENDPOINTS
 // ============================================
 app.get('/api/health', (req, res) => {
@@ -70,9 +68,8 @@ app.get('/', (req, res) => {
   });
 });
 
-// ============================================
+
 // DATABASE CONNECTION - FIXED
-// ============================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
