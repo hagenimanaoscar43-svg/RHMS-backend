@@ -88,6 +88,7 @@ pool.connect((err, client, release) => {
     }
 });
 // email resent configuration
+// DELETE the old nodemailer code, keep only:
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -99,10 +100,8 @@ const sendEmail = async (to, subject, html) => {
       subject,
       html,
     });
-
     console.log('📧 Email sent:', result.id);
     return result;
-
   } catch (error) {
     console.error('❌ Email error:', error.message);
     return null;
@@ -4642,6 +4641,7 @@ app.get('/api/hotel/bookings/:bookingId', authenticateToken, authorizeRole('hote
 });
 
 // Get recent activities (last 10 bookings and status changes)
+// Get recent activities (last 10 bookings and status changes) - COMPLETE FIX
 app.get('/api/hotel/recent-activities', authenticateToken, authorizeRole('hotel_admin'), async (req, res) => {
     try {
         const hotel = await pool.query(`SELECT hotel_id FROM hotels WHERE user_id = $1`, [req.user.user_id]);
@@ -4649,25 +4649,27 @@ app.get('/api/hotel/recent-activities', authenticateToken, authorizeRole('hotel_
             return res.status(404).json({ error: 'Hotel not found' });
         }
         
+        // ✅ CORRECTED: All column references are prefixed with table aliases
         const activities = await pool.query(`
             SELECT 
                 'booking' as type,
-                booking_id as id,
-                booking_number as reference,
-                status,
-                created_at as activity_date,
-                CONCAT('New booking #', booking_number, ' from ', u.full_name, ' - ', status) as message
+                b.booking_id as id,
+                b.booking_number as reference,
+                b.status,
+                b.created_at as activity_date,
+                CONCAT('New booking #', b.booking_number, ' from ', u.full_name, ' - ', b.status) as message
             FROM bookings b
-            JOIN users u ON b.user_id = u.user_id
+            INNER JOIN users u ON b.user_id = u.user_id
             WHERE b.hotel_id = $1
-            ORDER BY created_at DESC
+            ORDER BY b.created_at DESC
             LIMIT 10
         `, [hotel.rows[0].hotel_id]);
         
         res.json(activities.rows);
     } catch (error) {
         console.error('Error fetching recent activities:', error);
-        res.json([]);
+        // Return empty array instead of error
+        res.status(500).json({ error: 'Failed to fetch recent activities', details: error.message });
     }
 });
 
