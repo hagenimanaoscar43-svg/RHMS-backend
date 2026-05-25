@@ -1,11 +1,11 @@
 // server.js - Complete RHMS Backend Server (OTP REQUIRED FOR ALL USERS EXCEPT RDB)
+const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');  // ✅ ONLY ONE DECLARATION
-const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
@@ -13,6 +13,7 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
 
 // ============================================
 // MIDDLEWARE
@@ -79,7 +80,6 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000
 });
-
 // TEST CONNECTION PROPERLY
 pool.connect((err, client, release) => {
     if (err) {
@@ -89,58 +89,35 @@ pool.connect((err, client, release) => {
         release();
     }
 });
+// email resent configuration
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// JWT & EMAIL CONFIG
-// ============================================
-const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
-const JWT_EXPIRES_IN = '7d';
-// FIXED SMTP CONFIG (RENDER FRIENDLY)
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // important for TLS
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  tls: {
-    rejectUnauthorized: false
-  }
-});
+const sendEmail = async (to, subject, html) => {
+  try {
+    const result = await resend.emails.send({
+      from: process.env.SEND_FROM_EMAIL || 'onboarding@resend.dev',
+      to,
+      subject,
+      html,
+    });
 
-// OPTIONAL: test SMTP connection
-transporter.verify((error, success) => {
-  if (error) {
-    console.log("❌ SMTP connection failed:", error.message);
-  } else {
-    console.log("✅ SMTP is ready to send emails");
+    console.log('📧 Email sent:', result.id);
+    return result;
+
+  } catch (error) {
+    console.error('❌ Email error:', error.message);
+    return null;
   }
-});
+};
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
 const generateVerificationCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
-
 const generateResetToken = () => {
     return crypto.randomBytes(32).toString('hex');
-};
-
-const sendEmail = async (to, subject, html) => {
-    try {
-        const info = await transporter.sendMail({
-            from: '"RHMS" <noreply@rhms.gov.rw>',
-            to,
-            subject,
-            html
-        });
-        console.log('Email sent:', info.messageId);
-        return info;
-    } catch (error) {
-        console.error('Email error:', error);
-        return null;
-    }
 };
 
 // ============================================
