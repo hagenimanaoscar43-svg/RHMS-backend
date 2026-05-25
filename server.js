@@ -4,8 +4,8 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { Pool } = require('pg');  // ✅ ONLY ONE DECLARATION
-const nodemailer = require('nodemailer');
+const { Pool } = require('pg');  
+
 const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
