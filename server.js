@@ -1,10 +1,11 @@
-// server.js - Complete RHMS Backend Server
-require('dotenv').config();  // ✅ MUST BE FIRST
+// server.js - Complete RHMS Backend Server (OTP REQUIRED FOR ALL USERS EXCEPT RDB)
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { Pool } = require('pg');
+const { Pool } = require('pg');  // ✅ ONLY ONE DECLARATION
+const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
@@ -13,8 +14,6 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// Now JWT_SECRET will read from .env
-const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
 // ============================================
 // MIDDLEWARE
 // ============================================
@@ -46,6 +45,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
+// ============================================
 // HEALTH CHECK ENDPOINTS
 // ============================================
 app.get('/api/health', (req, res) => {
@@ -69,8 +69,9 @@ app.get('/', (req, res) => {
   });
 });
 
-
+// ============================================
 // DATABASE CONNECTION - FIXED
+// ============================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
@@ -78,6 +79,7 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000
 });
+
 // TEST CONNECTION PROPERLY
 pool.connect((err, client, release) => {
     if (err) {
@@ -87,33 +89,58 @@ pool.connect((err, client, release) => {
         release();
     }
 });
-// email resent configuration
-const { Resend } = require('resend');
-const resend = new Resend(process.env.RESEND_API_KEY);
 
-const sendEmail = async (to, subject, html) => {
-  try {
-    const result = await resend.emails.send({
-      from: process.env.SEND_FROM_EMAIL || 'onboarding@resend.dev',
-      to,
-      subject,
-      html,
-    });
-    console.log('📧 Email sent:', result.id);
-    return result;
-  } catch (error) {
-    console.error('❌ Email error:', error.message);
-    return null;
+// JWT & EMAIL CONFIG
+// ============================================
+const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
+const JWT_EXPIRES_IN = '7d';
+// FIXED SMTP CONFIG (RENDER FRIENDLY)
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false, // important for TLS
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  },
+  tls: {
+    rejectUnauthorized: false
   }
-};
+});
+
+// OPTIONAL: test SMTP connection
+transporter.verify((error, success) => {
+  if (error) {
+    console.log("❌ SMTP connection failed:", error.message);
+  } else {
+    console.log("✅ SMTP is ready to send emails");
+  }
+});
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
 const generateVerificationCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
+
 const generateResetToken = () => {
     return crypto.randomBytes(32).toString('hex');
+};
+
+const sendEmail = async (to, subject, html) => {
+    try {
+        const info = await transporter.sendMail({
+            from: '"RHMS" <noreply@rhms.gov.rw>',
+            to,
+            subject,
+            html
+        });
+        console.log('Email sent:', info.messageId);
+        return info;
+    } catch (error) {
+        console.error('Email error:', error);
+        return null;
+    }
 };
 
 // ============================================
@@ -4640,7 +4667,6 @@ app.get('/api/hotel/bookings/:bookingId', authenticateToken, authorizeRole('hote
 });
 
 // Get recent activities (last 10 bookings and status changes)
-// Get recent activities (last 10 bookings and status changes) - COMPLETE FIX
 app.get('/api/hotel/recent-activities', authenticateToken, authorizeRole('hotel_admin'), async (req, res) => {
     try {
         const hotel = await pool.query(`SELECT hotel_id FROM hotels WHERE user_id = $1`, [req.user.user_id]);
@@ -4648,27 +4674,25 @@ app.get('/api/hotel/recent-activities', authenticateToken, authorizeRole('hotel_
             return res.status(404).json({ error: 'Hotel not found' });
         }
         
-        // ✅ CORRECTED: All column references are prefixed with table aliases
         const activities = await pool.query(`
             SELECT 
                 'booking' as type,
-                b.booking_id as id,
-                b.booking_number as reference,
-                b.status,
-                b.created_at as activity_date,
-                CONCAT('New booking #', b.booking_number, ' from ', u.full_name, ' - ', b.status) as message
+                booking_id as id,
+                booking_number as reference,
+                status,
+                created_at as activity_date,
+                CONCAT('New booking #', booking_number, ' from ', u.full_name, ' - ', status) as message
             FROM bookings b
-            INNER JOIN users u ON b.user_id = u.user_id
+            JOIN users u ON b.user_id = u.user_id
             WHERE b.hotel_id = $1
-            ORDER BY b.created_at DESC
+            ORDER BY created_at DESC
             LIMIT 10
         `, [hotel.rows[0].hotel_id]);
         
         res.json(activities.rows);
     } catch (error) {
         console.error('Error fetching recent activities:', error);
-        // Return empty array instead of error
-        res.status(500).json({ error: 'Failed to fetch recent activities', details: error.message });
+        res.json([]);
     }
 });
 
