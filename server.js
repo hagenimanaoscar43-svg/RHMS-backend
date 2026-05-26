@@ -6,6 +6,8 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
+const { TransactionalEmailsApi } = require('@getbrevo/brevo');
+const apiInstance = new TransactionalEmailsApi();
 const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
@@ -47,24 +49,23 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 // ============================================
 // BREVO EMAIL SERVICE (FREE - 300 EMAILS/DAY)
 // ============================================
-let brevoApi = null;
+const Brevo = require('@getbrevo/brevo');
+
+let apiInstance = null;
 let brevoInitialized = false;
 
-try {
-    // Dynamic import for Brevo
-    const Brevo = require('@getbrevo/brevo');
-    
-    if (process.env.BREVO_API_KEY) {
-        brevoApi = new Brevo.TransactionalEmailsApi();
-        brevoApi.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+if (process.env.BREVO_API_KEY) {
+    try {
+        // CORRECT initialization
+        apiInstance = new Brevo.TransactionalEmailsApi();
+        apiInstance.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
         brevoInitialized = true;
         console.log('✅ Brevo email service initialized (300 emails/day free)');
-    } else {
-        console.log('⚠️ BREVO_API_KEY not set. Email will be simulated');
+    } catch (error) {
+        console.error('❌ Brevo initialization error:', error.message);
     }
-} catch (error) {
-    console.error('❌ Brevo initialization error:', error.message);
-    console.log('⚠️ Continuing without email service');
+} else {
+    console.log('⚠️ BREVO_API_KEY not set. Email will be simulated');
 }
 
 // Main sendEmail function
@@ -81,7 +82,6 @@ const sendEmail = async (to, subject, html) => {
         return { success: false, error: 'Invalid email format' };
     }
 
-    // Extract OTP for logging
     const otpMatch = html?.match(/(\d{6})/);
     const otpCode = otpMatch ? otpMatch[1] : 'unknown';
     
@@ -90,9 +90,8 @@ const sendEmail = async (to, subject, html) => {
     console.log(`   OTP Code: ${otpCode}`);
 
     // Try to send real email if Brevo is configured
-    if (brevoInitialized && process.env.BREVO_API_KEY) {
+    if (apiInstance && brevoInitialized && process.env.BREVO_API_KEY) {
         try {
-            const Brevo = require('@getbrevo/brevo');
             const sendSmtpEmail = new Brevo.SendSmtpEmail();
             sendSmtpEmail.to = [{ email: to }];
             sendSmtpEmail.sender = { 
@@ -102,17 +101,17 @@ const sendEmail = async (to, subject, html) => {
             sendSmtpEmail.subject = subject;
             sendSmtpEmail.htmlContent = html;
             
-            const result = await brevoApi.sendTransacEmail(sendSmtpEmail);
+            const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
             console.log(`✅ Email sent via Brevo! Message ID: ${result.messageId}`);
             return { success: true, provider: 'brevo', messageId: result.messageId };
             
         } catch (error) {
             console.error('❌ Brevo error:', error.response?.body || error.message);
-            // Fall through to log mode
+            // Fall through to development mode
         }
     }
     
-    // Fallback/Development mode - log only
+    // Development mode - log only
     console.log('📧 ==================================');
     console.log(`To: ${to}`);
     console.log(`Subject: ${subject}`);
@@ -125,7 +124,6 @@ const sendEmail = async (to, subject, html) => {
     
     return { success: true, devMode: true, otpCode };
 };
-
 // ============================================
 // HEALTH CHECK
 // ============================================
