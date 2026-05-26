@@ -193,28 +193,6 @@ try {
     console.error('❌ Firebase initialization error:', error.message);
     console.log('⚠️ Continuing without Firebase - email features will be simulated');
 }
-
-// ============================================
-// EMAIL FUNCTION (SIMULATED FOR DEVELOPMENT)
-// ============================================
-const sendEmail = async (to, subject, html) => {
-    if (!to || typeof to !== 'string') {
-        console.error('❌ Invalid email:', to);
-        return { success: false };
-    }
-
-    const otpMatch = html?.match(/(\d{6})/);
-    const otpCode = otpMatch ? otpMatch[1] : 'unknown';
-    
-    console.log('\n📧 ==================================');
-    console.log(`To: ${to}`);
-    console.log(`Subject: ${subject}`);
-    console.log(`OTP Code: ${otpCode}`);
-    console.log('==================================\n');
-    
-    return { success: true, otpCode };
-};
-
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
