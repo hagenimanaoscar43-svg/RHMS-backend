@@ -45,6 +45,88 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // ============================================
+// BREVO EMAIL SERVICE (FREE - 300 EMAILS/DAY)
+// ============================================
+let brevoApi = null;
+let brevoInitialized = false;
+
+try {
+    // Dynamic import for Brevo
+    const Brevo = require('@getbrevo/brevo');
+    
+    if (process.env.BREVO_API_KEY) {
+        brevoApi = new Brevo.TransactionalEmailsApi();
+        brevoApi.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+        brevoInitialized = true;
+        console.log('✅ Brevo email service initialized (300 emails/day free)');
+    } else {
+        console.log('⚠️ BREVO_API_KEY not set. Email will be simulated');
+    }
+} catch (error) {
+    console.error('❌ Brevo initialization error:', error.message);
+    console.log('⚠️ Continuing without email service');
+}
+
+// Main sendEmail function
+const sendEmail = async (to, subject, html) => {
+    // Validate email
+    if (!to || typeof to !== 'string') {
+        console.error('❌ Invalid email address:', to);
+        return { success: false, error: 'No email address provided' };
+    }
+
+    const emailRegex = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/;
+    if (!emailRegex.test(to)) {
+        console.error('❌ Invalid email format:', to);
+        return { success: false, error: 'Invalid email format' };
+    }
+
+    // Extract OTP for logging
+    const otpMatch = html?.match(/(\d{6})/);
+    const otpCode = otpMatch ? otpMatch[1] : 'unknown';
+    
+    console.log(`📧 Sending email to: ${to}`);
+    console.log(`   Subject: ${subject}`);
+    console.log(`   OTP Code: ${otpCode}`);
+
+    // Try to send real email if Brevo is configured
+    if (brevoInitialized && process.env.BREVO_API_KEY) {
+        try {
+            const Brevo = require('@getbrevo/brevo');
+            const sendSmtpEmail = new Brevo.SendSmtpEmail();
+            sendSmtpEmail.to = [{ email: to }];
+            sendSmtpEmail.sender = { 
+                email: 'noreply@rhms.com', 
+                name: 'RHMS System' 
+            };
+            sendSmtpEmail.subject = subject;
+            sendSmtpEmail.htmlContent = html;
+            
+            const result = await brevoApi.sendTransacEmail(sendSmtpEmail);
+            console.log(`✅ Email sent via Brevo! Message ID: ${result.messageId}`);
+            return { success: true, provider: 'brevo', messageId: result.messageId };
+            
+        } catch (error) {
+            console.error('❌ Brevo error:', error.response?.body || error.message);
+            // Fall through to log mode
+        }
+    }
+    
+    // Fallback/Development mode - log only
+    console.log('📧 ==================================');
+    console.log(`To: ${to}`);
+    console.log(`Subject: ${subject}`);
+    console.log(`OTP Code: ${otpCode}`);
+    console.log('==================================\n');
+    
+    if (!brevoInitialized) {
+        console.log('💡 Tip: Add BREVO_API_KEY to environment variables for real email sending');
+    }
+    
+    return { success: true, devMode: true, otpCode };
+};
+
+// ============================================
 // HEALTH CHECK
 // ============================================
 app.get('/api/health', (req, res) => {
@@ -178,7 +260,6 @@ const authorizeRole = (...roles) => {
         next();
     };
 };
-
 // ============================================
 // 2FA TEMP SESSIONS
 // ============================================
