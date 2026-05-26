@@ -50,22 +50,20 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 // BREVO EMAIL SERVICE (FREE - 300 EMAILS/DAY)
 // ============================================
 const Brevo = require('@getbrevo/brevo');
-let brevoInitialized = false;
+
+let brevoApi = null;
 
 if (process.env.BREVO_API_KEY) {
     try {
-        // CORRECT initialization
-        apiInstance = new Brevo.TransactionalEmailsApi();
+        // Correct way for v4.x
+        const apiInstance = new Brevo.TransactionalEmailsApi();
         apiInstance.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
-        brevoInitialized = true;
-        console.log('✅ Brevo email service initialized (300 emails/day free)');
+        brevoApi = apiInstance;
+        console.log('✅ Brevo email service ready');
     } catch (error) {
-        console.error('❌ Brevo initialization error:', error.message);
+        console.error('❌ Brevo init error:', error.message);
     }
-} else {
-    console.log('⚠️ BREVO_API_KEY not set. Email will be simulated');
 }
-
 // Main sendEmail function
 const sendEmail = async (to, subject, html) => {
     // Validate email
