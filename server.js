@@ -1,10 +1,11 @@
 // server.js - Complete RHMS Backend Server (OTP REQUIRED FOR ALL USERS EXCEPT RDB)
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { Pool } = require('pg');  // ✅ ONLY ONE DECLARATION
+const { Pool } = require('pg');
 const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
@@ -14,13 +15,16 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // ============================================
+// CONSTANTS
+// ============================================
+const JWT_SECRET = process.env.JWT_SECRET || 'rhms_super_secret_key_2026';
+const JWT_EXPIRES_IN = '7d';
+
+// ============================================
 // MIDDLEWARE
 // ============================================
-// Updated CORS for production
 app.use(cors({
-  origin: [
-    "https://rhms-frontend-blush.vercel.app"
-  ],
+  origin: ["https://rhms-frontend-blush.vercel.app"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
@@ -35,41 +39,24 @@ if (!fs.existsSync('./uploads')) {
 }
 
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/');
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
+    destination: (req, file, cb) => cb(null, 'uploads/'),
+    filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
 });
-const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // ============================================
-// HEALTH CHECK ENDPOINTS
+// HEALTH CHECK
 // ============================================
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    message: 'Server is running',
-    timestamp: new Date().toISOString()
-  });
+  res.json({ status: 'ok', message: 'Server is running', timestamp: new Date().toISOString() });
 });
 
 app.get('/', (req, res) => {
-  res.json({ 
-    message: 'RHMS Backend API is running',
-    endpoints: {
-      health: '/api/health',
-      client: '/api/client/register',
-      hotel: '/api/hotel/register',
-      employee: '/api/employee/login',
-      rdb: '/api/rdb/login'
-    }
-  });
+  res.json({ message: 'RHMS Backend API is running' });
 });
 
 // ============================================
-// DATABASE CONNECTION - FIXED
+// DATABASE CONNECTION
 // ============================================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -79,7 +66,6 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000
 });
 
-// TEST CONNECTION PROPERLY
 pool.connect((err, client, release) => {
     if (err) {
         console.error('❌ Database connection error:', err.message);
@@ -89,137 +75,75 @@ pool.connect((err, client, release) => {
     }
 });
 
-// JWT & EMAIL CONFIG
 // ============================================
-// FIREBASE ADMIN SDK (FREE EMAIL SERVICE)
+// FIREBASE ADMIN - SINGLE CORRECT INITIALIZATION
 // ============================================
-const admin = require('firebase-admin');
+// Only ONE Firebase initialization
+let admin = null;
+let serviceAccount = null;
 
-// Load your service account key
-const serviceAccount = require('./serviceAccountKey.json');
-
-// Initialize Firebase Admin
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
-
-console.log('✅ Firebase Admin initialized (free tier)');
-
-// Helper function to create user and send verification email
-const createFirebaseUser = async (email, password, displayName) => {
-  try {
-    const userRecord = await admin.auth().createUser({
-      email: email,
-      password: password,
-      displayName: displayName,
-    });
+try {
+    // Try to load from environment variable first (for Render)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        console.log('✅ Firebase credentials loaded from environment variable');
+    } 
+    // Try to load from local file (for development)
+    else if (fs.existsSync('./serviceAccountKey.json')) {
+        serviceAccount = require('./serviceAccountKey.json');
+        console.log('✅ Firebase credentials loaded from local file');
+    }
     
-    // Generate email verification link
-    const verificationLink = await admin.auth().generateEmailVerificationLink(email);
-    
-    console.log(`✅ Firebase user created: ${userRecord.uid}`);
-    return { 
-      success: true, 
-      uid: userRecord.uid, 
-      verificationLink 
-    };
-    
-  } catch (error) {
-    console.error('❌ Firebase error:', error.message);
-    return { success: false, error: error.message };
-  }
-};
-
-// Helper function for password reset
-const sendPasswordReset = async (email) => {
-  try {
-    const resetLink = await admin.auth().generatePasswordResetLink(email);
-    return { success: true, resetLink };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
+    if (serviceAccount) {
+        const firebaseAdmin = require('firebase-admin');
+        if (!firebaseAdmin.apps.length) {
+            admin = firebaseAdmin.initializeApp({
+                credential: firebaseAdmin.credential.cert(serviceAccount)
+            });
+            console.log('✅ Firebase Admin initialized successfully');
+        } else {
+            admin = firebaseAdmin;
+        }
+    } else {
+        console.log('⚠️ Firebase not configured - email features will be simulated');
+    }
+} catch (error) {
+    console.error('❌ Firebase initialization error:', error.message);
+    console.log('⚠️ Continuing without Firebase - email features will be simulated');
+}
 
 // ============================================
-// EMAIL SENDING FUNCTION (Using Firebase)
+// EMAIL FUNCTION (SIMULATED FOR DEVELOPMENT)
 // ============================================
 const sendEmail = async (to, subject, html) => {
-  // Validate email
-  if (!to || typeof to !== 'string') {
-    console.error('❌ Invalid email address:', to);
-    return { success: false, error: 'No email address provided' };
-  }
+    if (!to || typeof to !== 'string') {
+        console.error('❌ Invalid email:', to);
+        return { success: false };
+    }
 
-  const emailRegex = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/;
-  if (!emailRegex.test(to)) {
-    console.error('❌ Invalid email format:', to);
-    return { success: false, error: 'Invalid email format' };
-  }
-
-  // For Firebase, we can only send verification emails and password reset emails
-  // For custom email content (like OTP codes), we need to use a different approach
-  
-  try {
-    // Since Firebase Auth doesn't support sending custom HTML emails directly,
-    // we'll use a fallback approach:
+    const otpMatch = html?.match(/(\d{6})/);
+    const otpCode = otpMatch ? otpMatch[1] : 'unknown';
     
-    // Option 1: If it's a verification email
-    if (subject.includes('Verify') || subject.includes('verification')) {
-      const link = await admin.auth().generateEmailVerificationLink(to);
-      console.log(`📧 Verification link generated for ${to}: ${link}`);
-      return { success: true, method: 'firebase_verification', link };
-    }
+    console.log('\n📧 ==================================');
+    console.log(`To: ${to}`);
+    console.log(`Subject: ${subject}`);
+    console.log(`OTP Code: ${otpCode}`);
+    console.log('==================================\n');
     
-    // Option 2: If it's a password reset
-    else if (subject.includes('Reset') || subject.includes('reset')) {
-      const link = await admin.auth().generatePasswordResetLink(to);
-      console.log(`📧 Password reset link generated for ${to}: ${link}`);
-      return { success: true, method: 'firebase_reset', link };
-    }
-    
-    // Option 3: For custom emails (OTP codes, etc.) - log the code for development
-    else {
-      // Extract OTP code from HTML
-      const otpMatch = html.match(/(\d{6})/);
-      const otpCode = otpMatch ? otpMatch[1] : 'unknown';
-      
-      console.log(`\n📧 [EMAIL REQUIRED] To: ${to}`);
-      console.log(`   Subject: ${subject}`);
-      console.log(`   OTP Code: ${otpCode}`);
-      console.log(`   ⚠️ Custom emails require Resend/SendGrid. Firebase only sends verification & reset emails.\n`);
-      
-      // For now, return success in development
-      if (process.env.NODE_ENV !== 'production') {
-        return { success: true, devMode: true, otpCode };
-      }
-      
-      return { success: false, error: 'Custom email sending not configured. Please add Resend API key.' };
-    }
-    
-  } catch (error) {
-    console.error('❌ Email error:', error.message);
-    return { success: false, error: error.message };
-  }
+    return { success: true, otpCode };
 };
 
-// Helper function to generate OTP email HTML
-const generateOTPEmailHTML = (name, otpCode) => {
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px;">
-      <h2 style="color: #2563eb;">Two-Factor Authentication Required</h2>
-      <p>Dear ${name},</p>
-      <p>Please use the following verification code to complete your login:</p>
-      <div style="background: #f3f4f6; padding: 20px; text-align: center; font-size: 32px; letter-spacing: 5px; font-weight: bold; border-radius: 10px; margin: 20px 0;">
-        ${otpCode}
-      </div>
-      <p>This code expires in <strong>10 minutes</strong>.</p>
-      <p>You have <strong>5 attempts</strong> to enter the correct code.</p>
-      <hr>
-      <p style="color: #6b7280; font-size: 12px;">Rwanda Hotel Management System - 2FA Security</p>
-    </div>
-  `;
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+const generateVerificationCode = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
 };
-//6. Helper Functions (generateVerificationCode, etc.)
+
+const generateResetToken = () => {
+    return crypto.randomBytes(32).toString('hex');
+};
+
 // ============================================
 // AUTH MIDDLEWARE
 // ============================================
@@ -246,9 +170,6 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
-// Alias for verifyToken (so both names work)
-const verifyToken = authenticateToken;
-
 const authorizeRole = (...roles) => {
     return (req, res, next) => {
         if (!roles.includes(req.user.role)) {
@@ -259,11 +180,10 @@ const authorizeRole = (...roles) => {
 };
 
 // ============================================
-// 2FA TEMP SESSIONS STORAGE
+// 2FA TEMP SESSIONS
 // ============================================
 const tempLoginSessions = new Map();
 
-// Clean up expired sessions every 5 minutes
 setInterval(() => {
     const now = Date.now();
     for (const [token, session] of tempLoginSessions.entries()) {
@@ -271,7 +191,7 @@ setInterval(() => {
             tempLoginSessions.delete(token);
         }
     }
-    console.log(`🧹 2FA Sessions cleaned. Active sessions: ${tempLoginSessions.size}`);
+    console.log(`🧹 2FA Sessions cleaned. Active: ${tempLoginSessions.size}`);
 }, 5 * 60 * 1000);
 
 // ============================================
