@@ -47,90 +47,56 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // ============================================
-// BREVO EMAIL SERVICE (FREE - 300 EMAILS/DAY)
+// BREVO EMAIL SERVICE (Using Axios - More Reliable)
 // ============================================
-const Brevo = require('@getbrevo/brevo');
+const axios = require('axios');
 
-let brevoApi = null;
+let brevoInitialized = false;
 
-if (process.env.BREVO_API_KEY) {
-    try {
-        // Correct way for v4.x
-        const apiInstance = new Brevo.TransactionalEmailsApi();
-        apiInstance.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
-        brevoApi = apiInstance;
-        console.log('✅ Brevo email service ready');
-    } catch (error) {
-        console.error('❌ Brevo init error:', error.message);
-    }
-}
-// Main sendEmail function
 const sendEmail = async (to, subject, html) => {
-    // Validate email
     if (!to || typeof to !== 'string') {
         console.error('❌ Invalid email address:', to);
-        return { success: false, error: 'No email address provided' };
+        return { success: false };
     }
 
     const emailRegex = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/;
     if (!emailRegex.test(to)) {
         console.error('❌ Invalid email format:', to);
-        return { success: false, error: 'Invalid email format' };
+        return { success: false };
     }
 
     const otpMatch = html?.match(/(\d{6})/);
     const otpCode = otpMatch ? otpMatch[1] : 'unknown';
     
-    console.log(`📧 Sending email to: ${to}`);
-    console.log(`   Subject: ${subject}`);
-    console.log(`   OTP Code: ${otpCode}`);
+    console.log(`📧 To: ${to} | OTP: ${otpCode} | Subject: ${subject}`);
 
-    // Try to send real email if Brevo is configured
-    if (apiInstance && brevoInitialized && process.env.BREVO_API_KEY) {
+    if (process.env.BREVO_API_KEY) {
         try {
-            const sendSmtpEmail = new Brevo.SendSmtpEmail();
-            sendSmtpEmail.to = [{ email: to }];
-            sendSmtpEmail.sender = { 
-                email: 'noreply@rhms.com', 
-                name: 'RHMS System' 
-            };
-            sendSmtpEmail.subject = subject;
-            sendSmtpEmail.htmlContent = html;
-            
-            const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
-            console.log(`✅ Email sent via Brevo! Message ID: ${result.messageId}`);
-            return { success: true, provider: 'brevo', messageId: result.messageId };
-            
+            const response = await axios.post(
+                'https://api.brevo.com/v3/smtp/email',
+                {
+                    sender: { email: 'noreply@rhms.com', name: 'RHMS System' },
+                    to: [{ email: to }],
+                    subject: subject,
+                    htmlContent: html
+                },
+                {
+                    headers: {
+                        'api-key': process.env.BREVO_API_KEY,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            console.log(`✅ Email sent via Brevo!`);
+            return { success: true };
         } catch (error) {
-            console.error('❌ Brevo error:', error.response?.body || error.message);
-            // Fall through to development mode
+            console.error('❌ Brevo error:', error.response?.data || error.message);
         }
     }
     
-    // Development mode - log only
-    console.log('📧 ==================================');
-    console.log(`To: ${to}`);
-    console.log(`Subject: ${subject}`);
-    console.log(`OTP Code: ${otpCode}`);
-    console.log('==================================\n');
-    
-    if (!brevoInitialized) {
-        console.log('💡 Tip: Add BREVO_API_KEY to environment variables for real email sending');
-    }
-    
+    console.log('📧 [DEV MODE] Email logged (not actually sent)');
     return { success: true, devMode: true, otpCode };
 };
-// ============================================
-// HEALTH CHECK
-// ============================================
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running', timestamp: new Date().toISOString() });
-});
-
-app.get('/', (req, res) => {
-  res.json({ message: 'RHMS Backend API is running' });
-});
-
 // ============================================
 // DATABASE CONNECTION
 // ============================================
