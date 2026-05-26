@@ -50,8 +50,6 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 // BREVO EMAIL SERVICE (FREE - 300 EMAILS/DAY)
 // ============================================
 const Brevo = require('@getbrevo/brevo');
-
-let apiInstance = null;
 let brevoInitialized = false;
 
 if (process.env.BREVO_API_KEY) {
