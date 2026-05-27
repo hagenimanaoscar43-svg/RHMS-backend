@@ -4683,8 +4683,7 @@ app.get('/api/hotel/bookings/:bookingId', authenticateToken, authorizeRole('hote
         res.status(500).json({ error: 'Failed to fetch booking details' });
     }
 });
-
-// Get recent activities (last 10 bookings and status changes)
+// recently
 app.get('/api/hotel/recent-activities', authenticateToken, authorizeRole('hotel_admin'), async (req, res) => {
     try {
         const hotel = await pool.query(`SELECT hotel_id FROM hotels WHERE user_id = $1`, [req.user.user_id]);
@@ -4692,18 +4691,19 @@ app.get('/api/hotel/recent-activities', authenticateToken, authorizeRole('hotel_
             return res.status(404).json({ error: 'Hotel not found' });
         }
         
+        // ✅ FIXED: Added b. prefix to all ambiguous columns
         const activities = await pool.query(`
             SELECT 
                 'booking' as type,
-                booking_id as id,
-                booking_number as reference,
-                status,
-                created_at as activity_date,
-                CONCAT('New booking #', booking_number, ' from ', u.full_name, ' - ', status) as message
+                b.booking_id as id,
+                b.booking_number as reference,
+                b.status,
+                b.created_at as activity_date,
+                CONCAT('New booking #', b.booking_number, ' from ', u.full_name, ' - ', b.status) as message
             FROM bookings b
             JOIN users u ON b.user_id = u.user_id
             WHERE b.hotel_id = $1
-            ORDER BY created_at DESC
+            ORDER BY b.created_at DESC
             LIMIT 10
         `, [hotel.rows[0].hotel_id]);
         
@@ -4713,7 +4713,6 @@ app.get('/api/hotel/recent-activities', authenticateToken, authorizeRole('hotel_
         res.json([]);
     }
 });
-
 // Get all rooms with their status (for room management)
 app.get('/api/hotel/rooms', authenticateToken, authorizeRole('hotel_admin'), async (req, res) => {
     try {
