@@ -73,7 +73,7 @@ const sendEmail = async (to, subject, html) => {
             const response = await axios.post(
                 'https://api.brevo.com/v3/smtp/email',
                 {
-                    sender: { email: 'noreply@rhms.com', name: 'RHMS System' },
+                    sender: { email: 'hagenimanaoscar43@gmail.com', name: 'RHMS System' },
                     to: [{ email: to }],
                     subject: subject,
                     htmlContent: html
