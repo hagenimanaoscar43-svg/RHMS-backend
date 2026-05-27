@@ -533,7 +533,7 @@ app.post('/api/client/reset-password', async (req, res) => {
 // ==================== HOTEL AUTH ROUTES ====================
 // ============================================
 
-// Hotel Registration
+// Hotel Registration - AUTO VERIFIED
 app.post('/api/hotel/register', async (req, res) => {
     const { 
         hotel_name, email, phone, address, city, country, description, website,
@@ -553,9 +553,10 @@ app.post('/api/hotel/register', async (req, res) => {
         const verificationCode = generateVerificationCode();
         const codeExpires = new Date(Date.now() + 10 * 60000);
         
+        // ✅ FIXED: Added is_verified = true
         const userResult = await client.query(`
-            INSERT INTO users (full_name, email, phone, password_hash, role, verification_code, verification_code_expires)
-            VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING user_id
+            INSERT INTO users (full_name, email, phone, password_hash, role, verification_code, verification_code_expires, is_verified)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, true) RETURNING user_id
         `, [contact_person || hotel_name, email, phone, hashedPassword, 'hotel_admin', verificationCode, codeExpires]);
         
         const hotelResult = await client.query(`
@@ -565,17 +566,20 @@ app.post('/api/hotel/register', async (req, res) => {
         
         await client.query('COMMIT');
         
-        await sendEmail(email, 'Verify Your RHMS Hotel Account', `
+        // Optional: Send welcome email (no verification needed anymore)
+        await sendEmail(email, 'Welcome to RHMS - Hotel Account Created', `
             <h2>Welcome to RHMS, ${hotel_name}!</h2>
-            <p>Verification code: <strong>${verificationCode}</strong></p>
-            <p>This code expires in 10 minutes.</p>
-            <p>After verification, our team will review your registration.</p>
+            <p>Your hotel account has been created successfully.</p>
+            <p>You can now login using your email and password.</p>
+            <p>Our team will review your registration and approve your account shortly.</p>
         `);
         
         res.status(201).json({
-            message: 'Hotel registration submitted. Please verify your email.',
-            hotel_id: hotelResult.rows[0].hotel_id
+            message: 'Hotel registration successful. You can now login.',
+            hotel_id: hotelResult.rows[0].hotel_id,
+            is_verified: true
         });
+        
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Hotel registration error:', error);
@@ -4819,9 +4823,7 @@ app.put('/api/hotel/rooms/:roomId/block', authenticateToken, authorizeRole('hote
     // Reuse the status update endpoint logic
     req.body.status = status;
     req.body.maintenance_reason = reason;
-    
     // Call the status update handler (or duplicate logic here)
-    return app.handle(req, res);
 });
 
 // Add new room
