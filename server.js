@@ -489,7 +489,7 @@ app.post('/api/client/forgot-password', async (req, res) => {
         await pool.query(`UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE email = $3`, 
             [resetToken, tokenExpires, email]);
         
-        const resetLink = `http://localhost:3000/client/reset-password?token=${resetToken}`;
+        const resetLink = `http://rhms-frontend-blush.vercel.app/client/reset-password?token=${resetToken}`;
         
         await sendEmail(email, 'Reset Your RHMS Client Password', `
             <div style="font-family: Arial, sans-serif; max-width: 600px;">
@@ -781,7 +781,7 @@ app.post('/api/hotel/forgot-password', async (req, res) => {
         await pool.query(`UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE email = $3`, 
             [resetToken, tokenExpires, email]);
         
-        const resetLink = `http://localhost:3000/hotel/reset-password?token=${resetToken}`;
+        const resetLink = `http://rhms-frontend-blush.vercel.app/hotel/reset-password?token=${resetToken}`;
         
         await sendEmail(email, 'Reset Your RHMS Hotel Password', `
             <h2>Password Reset Request</h2>
@@ -936,7 +936,7 @@ app.post('/api/employee/forgot-password', async (req, res) => {
         await pool.query(`UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE email = $3`, 
             [resetToken, tokenExpires, email]);
         
-        const resetLink = `http://localhost:3000/employee/reset-password?token=${resetToken}`;
+        const resetLink = `http://rhms-frontend-blush.vercel.app/employee/reset-password?token=${resetToken}`;
         
         await sendEmail(email, 'Reset Your RHMS Employee Password', `
             <h2>Password Reset Request</h2>
